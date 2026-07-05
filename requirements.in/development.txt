@@ -4,6 +4,7 @@
 coverage
 pip-tools
 pytest
+pytest-django
 pywatchman
 ruff
 mypy

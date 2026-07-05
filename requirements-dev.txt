@@ -344,6 +344,12 @@ pyproject-hooks==1.2.0 \
 pytest==9.1.1 \
     --hash=sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313 \
     --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+    # via
+    #   -r requirements.in/development.txt
+    #   pytest-django
+pytest-django==4.12.0 \
+    --hash=sha256:3ff300c49f8350ba2953b90297d23bf5f589db69545f56f1ec5f8cff5da83e85 \
+    --hash=sha256:df94ec819a83c8979c8f6de13d9cdfbe76e8c21d39473cfe2b40c9fc9be3c758
     # via -r requirements.in/development.txt
 pywatchman==4.0.0 \
     --hash=sha256:09229f15ccf0fb5ed15592d41530ef69011866e3da4bf72785a965099519a33b \
