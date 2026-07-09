@@ -98,3 +98,28 @@ def auth_token(user):
     from etebase_server.django.token_auth.models import AuthToken
 
     return AuthToken.objects.create(user=user).key
+
+
+@pytest.fixture
+def collection(api_request, auth_token):
+    """Create a real collection through the API and return its uid.
+
+    The item content carries no chunks, so nothing is written to MEDIA_ROOT. This gives an
+    existing collection the requesting user administers, which is what the batch/transaction
+    regression tests need to reach the endpoint body (a missing collection would 404 first).
+    """
+    uid = "test-collection-uid"
+    body = {
+        "collectionType": b"type",
+        "collectionKey": b"colkey",
+        "item": {
+            "uid": uid,
+            "version": 1,
+            "encryptionKey": b"ekey",
+            "content": {"uid": "rev1", "meta": b"meta", "deleted": False, "chunks": []},
+            "etag": None,
+        },
+    }
+    status, _ = api_request("POST", "/api/v1/collection/", body=body, token=auth_token)
+    assert status == 201, f"collection setup failed with status {status}"
+    return uid
