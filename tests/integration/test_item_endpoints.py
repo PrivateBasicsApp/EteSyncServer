@@ -57,3 +57,21 @@ def test_member_list_nonexistent_collection_returns_404_not_422(api_request, aut
     # covered by the same get_collection fix.
     status, _ = api_request("GET", f"/api/v1/collection/{NONEXISTENT}/member/", token=auth_token)
     assert status == 404
+
+
+# batch/transaction take collection_uid as a direct endpoint param (from the router prefix).
+# Without Path() it was misclassified as a required query param -> 422, but only on an EXISTING
+# collection: for a missing one, get_collection short-circuits with 404 and hides it. These tests
+# exercise an existing collection so the direct param is actually validated.
+def test_item_batch_existing_collection_resolves_collection_uid(api_request, auth_token, collection):
+    status, _ = api_request(
+        "POST", f"/api/v1/collection/{collection}/item/batch/", body={"items": [], "deps": None}, token=auth_token
+    )
+    assert status == 200
+
+
+def test_item_transaction_existing_collection_resolves_collection_uid(api_request, auth_token, collection):
+    status, _ = api_request(
+        "POST", f"/api/v1/collection/{collection}/item/transaction/", body={"items": [], "deps": None}, token=auth_token
+    )
+    assert status == 200
