@@ -297,7 +297,7 @@ def process_revisions_for_item(item: models.CollectionItem, revision_data: Colle
 
     for chunk in revision_data.chunks:
         uid = chunk[0]
-        chunk_obj = models.CollectionItemChunk.objects.filter(uid=uid).first()
+        chunk_obj = item.collection.chunks.filter(uid=uid).first()
         content = chunk[1] if len(chunk) > 1 else None
         # If the chunk already exists we assume it's fine. Otherwise, we upload it.
         if chunk_obj is None:

@@ -5,6 +5,8 @@ Provides:
 - ``api_request``  : a synchronous ASGI driver to issue msgpack requests without httpx.
 - ``user`` / ``auth_token`` : user and token created via the ORM (they need a transactional
   DB, because the sync endpoints run in the threadpool and must see committed data).
+- ``other_user`` / ``other_auth_token`` : a second user, unrelated to ``user``, and its token.
+- ``media_root``   : points ``MEDIA_ROOT``, where chunk files are written, to a per-test directory.
 """
 
 import asyncio
@@ -123,3 +125,23 @@ def collection(api_request, auth_token):
     status, _ = api_request("POST", "/api/v1/collection/", body=body, token=auth_token)
     assert status == 201, f"collection setup failed with status {status}"
     return uid
+
+
+@pytest.fixture
+def other_user(transactional_db):
+    from etebase_server.myauth.models import get_typed_user_model
+
+    return get_typed_user_model().objects.create(username="otheruser", email="otheruser@example.com")
+
+
+@pytest.fixture
+def other_auth_token(other_user):
+    from etebase_server.django.token_auth.models import AuthToken
+
+    return AuthToken.objects.create(user=other_user).key
+
+
+@pytest.fixture
+def media_root(settings, tmp_path):
+    settings.MEDIA_ROOT = str(tmp_path)
+    return tmp_path
