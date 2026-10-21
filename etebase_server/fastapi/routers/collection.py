@@ -159,13 +159,14 @@ class ItemDepIn(BaseModel):
     uid: str
     etag: str
 
-    def validate_db(self):
-        item = models.CollectionItem.objects.get(uid=self.uid)
+    def validate_db(self, collection: models.Collection):
+        item = collection.items.filter(uid=self.uid).first()
+        cur_etag = item.etag if item is not None else None
         etag = self.etag
-        if item.etag != etag:
+        if cur_etag != etag:
             raise ValidationError(
                 "wrong_etag",
-                "Wrong etag. Expected {} got {}".format(item.etag, etag),
+                "Wrong etag. Expected {} got {}".format(cur_etag, etag),
                 status_code=status.HTTP_409_CONFLICT,
                 field=self.uid,
             )
@@ -175,12 +176,12 @@ class ItemBatchIn(BaseModel):
     items: t.List[CollectionItemIn]
     deps: t.Optional[t.List[ItemDepIn]] = None
 
-    def validate_db(self):
+    def validate_db(self, collection: models.Collection):
         if self.deps is not None:
             errors: t.List[HttpError] = []
             for dep in self.deps:
                 try:
-                    dep.validate_db()
+                    dep.validate_db(collection)
                 except ValidationError as e:
                     errors.append(e)
             if len(errors) > 0:
@@ -480,7 +481,7 @@ def item_bulk_common(
         if stoken and stoken != collection_object.stoken:
             raise HttpError("stale_stoken", "Stoken is too old", status_code=status.HTTP_409_CONFLICT)
 
-        data.validate_db()
+        data.validate_db(collection_object)
 
         errors: t.List[HttpError] = []
         for item in data.items:
