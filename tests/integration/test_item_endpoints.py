@@ -75,3 +75,10 @@ def test_item_transaction_existing_collection_resolves_collection_uid(api_reques
         "POST", f"/api/v1/collection/{collection}/item/transaction/", body={"items": [], "deps": None}, token=auth_token
     )
     assert status == 200
+
+
+def test_get_missing_item_returns_404(api_request, auth_token, collection):
+    status, body = api_request("GET", f"/api/v1/collection/{collection}/item/{NONEXISTENT}/", token=auth_token)
+
+    assert status == 404
+    assert body["code"] == "does_not_exist"
