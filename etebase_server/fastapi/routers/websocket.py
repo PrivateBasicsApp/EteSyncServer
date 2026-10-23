@@ -24,7 +24,7 @@ websocket_router = APIRouter(route_class=MsgpackRoute, responses=permission_resp
 CollectionQuerySet = QuerySet[models.Collection]
 
 
-TICKET_VALIDITY_SECONDS = 10
+TICKET_VALIDITY_SECONDS = 60
 
 
 class TicketRequest(BaseModel):
@@ -51,7 +51,7 @@ async def get_ticket(
     uid = nacl.encoding.URLSafeBase64Encoder.encode(nacl.utils.random(32))
     ticket_model = TicketInner(user=user.id, req=ticket_request)
     ticket_raw = msgpack_encode(ticket_model.dict())
-    await redisw.redis.set(uid, ticket_raw, ex=TICKET_VALIDITY_SECONDS * 1000)
+    await redisw.redis.set(uid, ticket_raw, ex=TICKET_VALIDITY_SECONDS)
     return TicketOut(ticket=uid)
 
 
