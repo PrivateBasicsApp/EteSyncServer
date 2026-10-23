@@ -102,8 +102,7 @@ async def send_item_updates(
 
 
 async def redis_connector(websocket: WebSocket, ticket_model: TicketInner, user: UserType, stoken: t.Optional[str]):
-    async def producer_handler(r: aioredis.Redis, ws: WebSocket):
-        pubsub = r.pubsub()
+    async def producer_handler(pubsub: aioredis.client.PubSub, ws: WebSocket):
         channel_name = f"col.{ticket_model.req.collection}"
         await pubsub.subscribe(channel_name)
 
@@ -144,5 +143,5 @@ async def redis_connector(websocket: WebSocket, ticket_model: TicketInner, user:
         except WebSocketDisconnect:
             pass
 
-    redis = redisw.redis
-    await producer_handler(redis, websocket)
+    async with redisw.redis.pubsub() as pubsub:
+        await producer_handler(pubsub, websocket)
