@@ -26,4 +26,4 @@ def test_ticket_expires_after_validity_seconds(monkeypatch):
     out = asyncio.run(get_ticket(TicketRequest(collection="collection-uid"), SimpleNamespace(id=1)))
 
     # redis-py takes ``ex`` in seconds
-    assert redis.set_calls == [{"name": out.ticket.encode(), "ex": TICKET_VALIDITY_SECONDS}]
+    assert redis.set_calls == [{"name": out.ticket, "ex": TICKET_VALIDITY_SECONDS}]
