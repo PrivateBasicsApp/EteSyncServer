@@ -135,6 +135,9 @@ class WebSocketSession:
     async def next_message(self, timeout=2):
         return await asyncio.wait_for(self.messages.get(), timeout)
 
+    async def send(self, data):
+        await self._inbox.put({"type": "websocket.receive", "bytes": data})
+
     async def disconnect(self):
         await self._inbox.put({"type": "websocket.disconnect", "code": 1000})
         await self.wait_finished()
