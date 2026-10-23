@@ -5,6 +5,8 @@ Provides:
 - ``api_request``  : a synchronous ASGI driver to issue msgpack requests without httpx.
 - ``user`` / ``auth_token`` : user and token created via the ORM (they need a transactional
   DB, because the sync endpoints run in the threadpool and must see committed data).
+- ``other_user`` / ``other_auth_token`` : a second user, unrelated to ``user``, and its token.
+- ``media_root``   : points ``MEDIA_ROOT``, where chunk files are written, to a per-test directory.
 """
 
 import asyncio
@@ -98,3 +100,48 @@ def auth_token(user):
     from etebase_server.django.token_auth.models import AuthToken
 
     return AuthToken.objects.create(user=user).key
+
+
+@pytest.fixture
+def collection(api_request, auth_token):
+    """Create a real collection through the API and return its uid.
+
+    The item content carries no chunks, so nothing is written to MEDIA_ROOT. This gives an
+    existing collection the requesting user administers, which is what the batch/transaction
+    regression tests need to reach the endpoint body (a missing collection would 404 first).
+    """
+    uid = "test-collection-uid"
+    body = {
+        "collectionType": b"type",
+        "collectionKey": b"colkey",
+        "item": {
+            "uid": uid,
+            "version": 1,
+            "encryptionKey": b"ekey",
+            "content": {"uid": "rev1", "meta": b"meta", "deleted": False, "chunks": []},
+            "etag": None,
+        },
+    }
+    status, _ = api_request("POST", "/api/v1/collection/", body=body, token=auth_token)
+    assert status == 201, f"collection setup failed with status {status}"
+    return uid
+
+
+@pytest.fixture
+def other_user(transactional_db):
+    from etebase_server.myauth.models import get_typed_user_model
+
+    return get_typed_user_model().objects.create(username="otheruser", email="otheruser@example.com")
+
+
+@pytest.fixture
+def other_auth_token(other_user):
+    from etebase_server.django.token_auth.models import AuthToken
+
+    return AuthToken.objects.create(user=other_user).key
+
+
+@pytest.fixture
+def media_root(settings, tmp_path):
+    settings.MEDIA_ROOT = str(tmp_path)
+    return tmp_path
