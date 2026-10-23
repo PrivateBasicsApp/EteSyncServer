@@ -3,6 +3,8 @@
 Provides:
 - ``app``          : the real ASGI app built by ``create_application`` (session-scoped).
 - ``api_request``  : a synchronous ASGI driver to issue msgpack requests without httpx.
+- ``async_api_request`` : the same driver as a coroutine, for tests that run several requests
+  in one event loop (e.g. with Redis, whose connections are bound to the loop that opens them).
 - ``user`` / ``auth_token`` : user and token created via the ORM (they need a transactional
   DB, because the sync endpoints run in the threadpool and must see committed data).
 - ``other_user`` / ``other_auth_token`` : a second user, unrelated to ``user``, and its token.
@@ -10,6 +12,7 @@ Provides:
 """
 
 import asyncio
+import functools
 import os
 
 import msgpack
@@ -31,60 +34,71 @@ def app():
     return create_application()
 
 
-@pytest.fixture
-def api_request(app):
+async def asgi_request(app, method, path, *, body=None, token=None):
     """Drive a single HTTP request through the ASGI app and return ``(status, decoded_body)``.
 
     The request body is msgpack-encoded; the response is msgpack-decoded (falling back to raw
     bytes for non-msgpack responses, e.g. FastAPI's default 401/403).
     """
+    raw = msgpack_encode(body) if body is not None else b""
+    url_path, _, query = path.partition("?")
+
+    headers = [(b"host", b"testserver"), (b"accept", b"application/msgpack")]
+    if body is not None:
+        headers.append((b"content-type", b"application/msgpack"))
+    if token is not None:
+        headers.append((b"authorization", f"Token {token}".encode()))
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": method,
+        "path": url_path,
+        "raw_path": url_path.encode(),
+        "query_string": query.encode(),
+        "headers": headers,
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("testclient", 1),
+        "root_path": "",
+    }
+
+    async def receive():
+        return {"type": "http.request", "body": raw, "more_body": False}
+
+    captured = {"status": None, "body": b""}
+
+    async def send(message):
+        if message["type"] == "http.response.start":
+            captured["status"] = message["status"]
+        elif message["type"] == "http.response.body":
+            captured["body"] += message.get("body", b"")
+
+    await app(scope, receive, send)
+
+    out = captured["body"]
+    try:
+        decoded = msgpack.unpackb(out, raw=False) if out else None
+    except Exception:
+        decoded = out
+    return captured["status"], decoded
+
+
+@pytest.fixture
+def api_request(app):
+    """``asgi_request`` as a synchronous call: each request runs in a new event loop."""
 
     def _request(method, path, *, body=None, token=None):
-        raw = msgpack_encode(body) if body is not None else b""
-        url_path, _, query = path.partition("?")
-
-        headers = [(b"host", b"testserver"), (b"accept", b"application/msgpack")]
-        if body is not None:
-            headers.append((b"content-type", b"application/msgpack"))
-        if token is not None:
-            headers.append((b"authorization", f"Token {token}".encode()))
-
-        scope = {
-            "type": "http",
-            "asgi": {"version": "3.0", "spec_version": "2.3"},
-            "http_version": "1.1",
-            "method": method,
-            "path": url_path,
-            "raw_path": url_path.encode(),
-            "query_string": query.encode(),
-            "headers": headers,
-            "scheme": "http",
-            "server": ("testserver", 80),
-            "client": ("testclient", 1),
-            "root_path": "",
-        }
-
-        async def receive():
-            return {"type": "http.request", "body": raw, "more_body": False}
-
-        captured = {"status": None, "body": b""}
-
-        async def send(message):
-            if message["type"] == "http.response.start":
-                captured["status"] = message["status"]
-            elif message["type"] == "http.response.body":
-                captured["body"] += message.get("body", b"")
-
-        asyncio.run(app(scope, receive, send))
-
-        out = captured["body"]
-        try:
-            decoded = msgpack.unpackb(out, raw=False) if out else None
-        except Exception:
-            decoded = out
-        return captured["status"], decoded
+        return asyncio.run(asgi_request(app, method, path, body=body, token=token))
 
     return _request
+
+
+@pytest.fixture
+def async_api_request(app):
+    """``asgi_request`` bound to the app, for tests that keep one event loop across requests."""
+    return functools.partial(asgi_request, app)
 
 
 @pytest.fixture
