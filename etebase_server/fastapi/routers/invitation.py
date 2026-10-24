@@ -92,7 +92,10 @@ class InvitationListResponse(BaseModel):
 
 @django_db_cleanup_decorator
 def get_incoming_queryset(user: UserType = Depends(get_authenticated_user)):
-    return default_queryset.filter(user=user)
+    # An invitation is valid only while its sender is still an active admin of the collection.
+    return default_queryset.filter(
+        user=user, fromMember__accessLevel=models.AccessLevels.ADMIN, fromMember__user__is_active=True
+    )
 
 
 @django_db_cleanup_decorator
