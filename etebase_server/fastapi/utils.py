@@ -6,7 +6,7 @@ import msgpack
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Model, QuerySet
 from fastapi import Depends, Query, status
-from pydantic import BaseModel as PyBaseModel
+from pydantic import AfterValidator, BaseModel as PyBaseModel
 from typing_extensions import Literal
 
 from etebase_server.django import app_settings
@@ -19,6 +19,10 @@ User = get_typed_user_model()
 
 Prefetch = Literal["auto", "medium"]
 PrefetchQuery = Query(default="auto")
+
+MAX_LIMIT = 500
+# Page size of the list endpoints. A larger request gets pages of MAX_LIMIT, which clients follow through `done`.
+Limit = t.Annotated[int, Query(ge=1), AfterValidator(lambda limit: min(limit, MAX_LIMIT))]
 
 
 T = t.TypeVar("T", bound=Model, covariant=True)
