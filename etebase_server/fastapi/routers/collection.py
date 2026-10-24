@@ -3,7 +3,7 @@ import typing as t
 from asgiref.sync import sync_to_async
 from django.core import exceptions as django_exceptions
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, transaction
 from django.db.models import Q, QuerySet
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Request, status
 
@@ -290,6 +290,20 @@ def collection_list(
     return MsgpackResponse(collection_list_common(queryset, user, stoken, limit, prefetch))
 
 
+def store_chunk(chunk_obj: models.CollectionItemChunk, content_file: ContentFile):
+    """Write the chunk file, then save the row; the file is deleted again if the row cannot be saved.
+
+    The storage must not overwrite existing files (``allow_overwrite``), or the file of an existing chunk would be
+    the one deleted.
+    """
+    chunk_obj.chunkFile.save("IGNORED", content_file, save=False)
+    try:
+        chunk_obj.save()
+    except DatabaseError:
+        chunk_obj.chunkFile.delete(save=False)
+        raise
+
+
 def process_revisions_for_item(item: models.CollectionItem, revision_data: CollectionItemRevisionInOut):
     chunks_objs = []
 
@@ -304,8 +318,7 @@ def process_revisions_for_item(item: models.CollectionItem, revision_data: Colle
         if chunk_obj is None:
             if content is not None:
                 chunk_obj = models.CollectionItemChunk(uid=uid, collection=item.collection)
-                chunk_obj.chunkFile.save("IGNORED", ContentFile(content))
-                chunk_obj.save()
+                store_chunk(chunk_obj, ContentFile(content))
             else:
                 raise ValidationError("chunk_no_content", "Tried to create a new chunk without content")
 
@@ -607,8 +620,7 @@ def item_batch(
 @sync_to_async
 def chunk_save(chunk_uid: str, collection: models.Collection, content_file: ContentFile):
     chunk_obj = models.CollectionItemChunk(uid=chunk_uid, collection=collection)
-    chunk_obj.chunkFile.save("IGNORED", content_file)
-    chunk_obj.save()
+    store_chunk(chunk_obj, content_file)
     return chunk_obj
 
 
