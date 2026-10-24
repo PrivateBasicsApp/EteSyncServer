@@ -3,7 +3,7 @@ import dataclasses
 import typing as t
 
 import msgpack
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db.models import Model, QuerySet
 from fastapi import Depends, Query, status
 from pydantic import BaseModel as PyBaseModel
@@ -39,6 +39,10 @@ def get_object_or_404(queryset: QuerySet[T], **kwargs) -> T:
         return queryset.get(**kwargs)
     except ObjectDoesNotExist as e:
         raise HttpError("does_not_exist", str(e), status_code=status.HTTP_404_NOT_FOUND)
+    except MultipleObjectsReturned:
+        # Reported like a missing object: a lookup by email can match several users.
+        detail = f"{queryset.model._meta.object_name} matching query does not exist."
+        raise HttpError("does_not_exist", detail, status_code=status.HTTP_404_NOT_FOUND)
 
 
 def is_collection_admin(collection, user):

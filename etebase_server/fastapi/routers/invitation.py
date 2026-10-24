@@ -10,7 +10,7 @@ from etebase_server.myauth.models import UserType, get_typed_user_model
 
 from ..db_hack import django_db_cleanup_decorator
 from ..dependencies import get_collection_queryset
-from ..exceptions import HttpError, PermissionDenied
+from ..exceptions import HttpError, PermissionDenied, ValidationError
 from ..msgpack import MsgpackResponse, MsgpackRoute
 from ..utils import (
     PERMISSIONS_READ,
@@ -171,16 +171,24 @@ def incoming_accept(
 
     with transaction.atomic():
         user = invitation.user
-        collection_type_obj, _ = models.CollectionType.objects.get_or_create(uid=data.collectionType, owner=user)
+        try:
+            collection_type_obj, _ = models.CollectionType.objects.get_or_create(uid=data.collectionType, owner=user)
+        except IntegrityError:
+            raise ValidationError("bad_collection_type", "collectionType is already in use")
 
-        models.CollectionMember.objects.create(
-            collection=invitation.collection,
-            stoken=models.Stoken.objects.create(),
-            user=user,
-            accessLevel=invitation.accessLevel,
-            encryptionKey=data.encryptionKey,
-            collectionType=collection_type_obj,
-        )
+        try:
+            models.CollectionMember.objects.create(
+                collection=invitation.collection,
+                stoken=models.Stoken.objects.create(),
+                user=user,
+                accessLevel=invitation.accessLevel,
+                encryptionKey=data.encryptionKey,
+                collectionType=collection_type_obj,
+            )
+        except IntegrityError:
+            raise HttpError(
+                "member_exists", "User is already a member of this collection", status_code=status.HTTP_409_CONFLICT
+            )
 
         models.CollectionMemberRemoved.objects.filter(user=invitation.user, collection=invitation.collection).delete()
 

@@ -122,7 +122,8 @@ def get_login_user(request: Request, challenge: LoginChallengeIn) -> UserType:
         if not hasattr(user, "userinfo"):
             raise AuthenticationFailed(code="user_not_init", detail="User not properly init")
         return user
-    except User.DoesNotExist:
+    except (User.DoesNotExist, User.MultipleObjectsReturned):
+        # An email shared by several users identifies none of them.
         raise AuthenticationFailed(code="user_not_found", detail="User not found")
 
 

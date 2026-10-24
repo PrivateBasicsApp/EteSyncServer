@@ -36,7 +36,10 @@ def __renew_token(auth_token: AuthToken):
 
 
 def __get_authenticated_user(api_token: str):
-    api_token = api_token.split()[1]
+    try:
+        _, api_token = api_token.split()
+    except ValueError:
+        raise AuthenticationFailed(detail="Invalid token header.")
     try:
         token: AuthToken = AuthToken.objects.select_related("user").get(key=api_token)
     except AuthToken.DoesNotExist:
