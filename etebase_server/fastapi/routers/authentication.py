@@ -208,10 +208,13 @@ def logout(auth_data: AuthData = Depends(get_auth_data)):
 
 
 @authentication_router.post("/change_password/", status_code=status.HTTP_204_NO_CONTENT, responses=permission_responses)
-def change_password(data: ChangePassword, request: Request, user: UserType = Depends(get_authenticated_user)):
+def change_password(data: ChangePassword, request: Request, auth_data: AuthData = Depends(get_auth_data)):
     host = request.headers.get("Host")
-    validate_login_request(data.response_data, data, user, "changePassword", host)
-    save_changed_password(data, user)
+    validate_login_request(data.response_data, data, auth_data.user, "changePassword", host)
+    with transaction.atomic():
+        save_changed_password(data, auth_data.user)
+        # The other sessions end; the caller keeps its token, since this endpoint cannot return a new one.
+        AuthToken.objects.filter(user=auth_data.user).exclude(pk=auth_data.token.pk).delete()
 
 
 @authentication_router.post("/dashboard_url/", responses=permission_responses)
