@@ -98,7 +98,7 @@ async def send_item_updates(
     while not done:
         queryset = await sync_to_async(get_item_queryset)(collection)
         response = await sync_to_async(item_list_common)(queryset, user, stoken, limit=50, prefetch="auto")
-        done = response.done
+        stoken, done = response.stoken, response.done
         if len(response.data) > 0:
             await websocket.send_bytes(msgpack_encode(response.dict()))
 

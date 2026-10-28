@@ -1,6 +1,7 @@
 """Websocket sessions against a fake Redis.
 
-Item updates reach active members only, and every session releases its pub/sub connection when it ends.
+The catch-up sends every missed item once, item updates reach active members only, and every session releases its
+pub/sub connection when it ends.
 """
 
 import asyncio
@@ -45,6 +46,25 @@ async def subscribe(app, async_api_request, token, col_uid):
     session = WebSocketSession(app, f"/api/v1/ws/{await get_ticket(async_api_request, token, col_uid)}/")
     await session.next_message()
     return session
+
+
+def test_catch_up_sends_every_item_once(app, api_request, async_api_request, auth_token, col_uid):
+    item_uids = [new_uid() for _ in range(60)]
+    assert upload_items(api_request, auth_token, col_uid, [item_payload(uid) for uid in item_uids])[0] == 200
+
+    async def scenario():
+        async with fake_redis():
+            session = WebSocketSession(app, f"/api/v1/ws/{await get_ticket(async_api_request, auth_token, col_uid)}/")
+            pages = [msgpack.unpackb(await session.next_message(), raw=False) for _ in range(2)]
+
+            # The catch-up includes the item of the collection itself, in pages of 50.
+            assert [(len(page["data"]), page["done"]) for page in pages] == [(50, False), (11, True)]
+            uids = [item["uid"] for page in pages for item in page["data"]]
+            assert sorted(uids) == sorted([col_uid, *item_uids])
+            await session.disconnect()
+            assert session.messages.empty()
+
+    asyncio.run(scenario())
 
 
 def test_ended_session_releases_its_subscription(app, async_api_request, auth_token, col_uid):
