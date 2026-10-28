@@ -1,6 +1,8 @@
-"""Chunk references in a revision resolve only within the collection of the item."""
+"""Chunk references in a revision resolve only within the collection of the item, and a chunk file is kept only
+together with its row."""
 
 import pytest
+from django.db import DataError
 
 from etebase_server.django import models
 from etebase_server.fastapi.utils import msgpack_encode
@@ -71,3 +73,34 @@ def test_chunk_of_same_collection_is_reused_without_content(api_request, auth_to
     status, body = get_item(api_request, auth_token, col_uid, item_uid)
     assert status == 200
     assert body["content"]["chunks"] == [[chunk_uid, CIPHERTEXT_OF_USER]]
+
+
+def test_upload_of_an_existing_chunk_leaves_no_extra_file(api_request, auth_token, media_root):
+    col_uid = new_uid()
+    assert create_collection(api_request, auth_token, col_uid)[0] == 201
+    path = f"/api/v1/collection/{col_uid}/item/{new_uid()}/chunk/{new_uid()}/"
+
+    assert api_request("PUT", path, body=b"first upload", token=auth_token)[0] == 201
+    status, body = api_request("PUT", path, body=b"second upload", token=auth_token)
+
+    assert status == 409
+    assert body["code"] == "chunk_exists"
+    files = [f for f in media_root.rglob("*") if f.is_file()]
+    assert [f.read_bytes() for f in files] == [msgpack_encode(b"first upload")]
+
+
+def test_chunk_file_is_deleted_when_its_row_cannot_be_saved(api_request, auth_token, media_root, monkeypatch):
+    col_uid = new_uid()
+    assert create_collection(api_request, auth_token, col_uid)[0] == 201
+    chunk_uid = new_uid()
+
+    def fail_to_save(*args, **kwargs):
+        raise DataError("value too long for the uid column")
+
+    monkeypatch.setattr(models.CollectionItemChunk, "save", fail_to_save)
+    path = f"/api/v1/collection/{col_uid}/item/{new_uid()}/chunk/{chunk_uid}/"
+    with pytest.raises(DataError):
+        api_request("PUT", path, body=b"content", token=auth_token)
+
+    assert not models.CollectionItemChunk.objects.filter(uid=chunk_uid).exists()
+    assert not [f for f in media_root.rglob("*") if f.is_file()]
