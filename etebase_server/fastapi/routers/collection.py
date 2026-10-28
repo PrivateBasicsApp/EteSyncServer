@@ -22,6 +22,7 @@ from ..utils import (
     PERMISSIONS_READWRITE,
     BaseModel,
     Context,
+    Limit,
     Prefetch,
     PrefetchQuery,
     get_object_or_404,
@@ -266,7 +267,7 @@ def has_write_access(
 def list_multi(
     data: ListMulti,
     stoken: t.Optional[str] = None,
-    limit: int = 50,
+    limit: Limit = 50,
     queryset: CollectionQuerySet = Depends(get_collection_queryset),
     user: UserType = Depends(get_authenticated_user),
     prefetch: Prefetch = PrefetchQuery,
@@ -282,7 +283,7 @@ def list_multi(
 @collection_router.get("/", response_model=CollectionListResponse, dependencies=PERMISSIONS_READ)
 def collection_list(
     stoken: t.Optional[str] = None,
-    limit: int = 50,
+    limit: Limit = 50,
     prefetch: Prefetch = PrefetchQuery,
     user: UserType = Depends(get_authenticated_user),
     queryset: CollectionQuerySet = Depends(get_collection_queryset),
@@ -458,7 +459,7 @@ def item_list_common(
 def item_list(
     queryset: CollectionItemQuerySet = Depends(get_item_queryset),
     stoken: t.Optional[str] = None,
-    limit: int = 50,
+    limit: Limit = 50,
     prefetch: Prefetch = PrefetchQuery,
     withCollection: bool = False,
     user: UserType = Depends(get_authenticated_user),
@@ -519,7 +520,7 @@ def item_bulk_common(
 )
 def item_revisions(
     item_uid: str,
-    limit: int = 50,
+    limit: Limit = 50,
     iterator: t.Optional[str] = None,
     prefetch: Prefetch = PrefetchQuery,
     user: UserType = Depends(get_authenticated_user),

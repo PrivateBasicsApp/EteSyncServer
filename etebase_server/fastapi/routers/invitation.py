@@ -17,6 +17,7 @@ from ..utils import (
     PERMISSIONS_READWRITE,
     BaseModel,
     Context,
+    Limit,
     get_object_or_404,
     get_user_username_email_kwargs,
     is_collection_admin,
@@ -134,7 +135,7 @@ def list_common(
 @invitation_incoming_router.get("/", response_model=InvitationListResponse, dependencies=PERMISSIONS_READ)
 def incoming_list(
     iterator: t.Optional[str] = None,
-    limit: int = 50,
+    limit: Limit = 50,
     queryset: InvitationQuerySet = Depends(get_incoming_queryset),
 ):
     return MsgpackResponse(list_common(queryset, iterator, limit))
@@ -228,7 +229,7 @@ def outgoing_create(
 @invitation_outgoing_router.get("/", response_model=InvitationListResponse, dependencies=PERMISSIONS_READ)
 def outgoing_list(
     iterator: t.Optional[str] = None,
-    limit: int = 50,
+    limit: Limit = 50,
     queryset: InvitationQuerySet = Depends(get_outgoing_queryset),
 ):
     return MsgpackResponse(list_common(queryset, iterator, limit))
